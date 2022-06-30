@@ -16,8 +16,16 @@ class SIRModels:
         self.T = 100 # mittlerer Erinnerungszeit
         self.P = lambda state: self.p_base+(1-self.p_base)/self.p_cap*self.epsilon*np.log(1+np.exp(1/self.epsilon*(self.p_cap-state[4])))
         self.Gamma = lambda t : 1+self.s*np.cos(self.omega*t)
+        self.dP = lambda state : (((1-self.p_base)/self.p_cap)*self.epsilon*np.exp((self.p_cap-state[4])/self.epsilon))/(1+np.exp(self.p_cap-state[4]/self.epsilon))
 
-    
+    def fixed_points(self):
+         dS = 
+         dI = 
+         dR = 
+         dH1 =
+         dH = 
+         return [dS, dI, dR, dH1, dH]
+
     def ClassicIncrement(self,t, state):
         """
         The function returns the temporal derivative of the state vector 'state'=(S,I,R) for the classical SIR Model.
@@ -32,7 +40,7 @@ class SIRModels:
         dS = -self.beta*state[1]*state[0]
         dI = self.beta*state[1]*state[0] - self.gamma*state[1]
         dR = self.gamma*state[1]
-        return [dS,dI,dR]
+        return [dS,dI,dR, 0 ,0]
 
     def VitalIncrement(self,t, state):
         """
@@ -48,7 +56,7 @@ class SIRModels:
         dS = -self.beta*state[1]*state[0] + self.mue - self.mue*state[0] + self.nue*state[2]
         dI = self.beta*state[1]*state[0] - self.gamma*state[1] - self.mue*state[1]
         dR = self.gamma*state[1] - self.mue*state[2] - self.nue*state[2]
-        return [dS,dI,dR]
+        return [dS,dI,dR, 0 ,0]
 
 
     def SeasonalyIncrement(self, t, state):
@@ -62,11 +70,15 @@ class SIRModels:
         Return: 
             - state after one step
         """
-        dS = -self.beta*self.P(state)*self.Gamma(t)*state[1]*state[0]+ self.nue*state[2]
-        dI = self.beta*self.P(state)*self.Gamma(t)+state[1]*state[0]- self.gamma+state[1]
-        dR = self.gamma*state[1]-self.nue+state[2]
-        dH1 = 2/self.T*(state[1]-state[3])
-        dH = 2/self.T*(state[3]-state[4])
+        P = self.P(state)
+        Gamma = self.Gamma(t)
+        S , I, R, H1, H = state
+
+        dS = -self.beta*P*Gamma*I*S + self.nue*R
+        dI = self.beta*P*Gamma*I*S - self.gamma*I
+        dR = self.gamma*I - self.nue*R
+        dH1 = 2/self.T*(I-H1)
+        dH = 2/self.T*(H1-H)
 
         return [dS,dI,dR,dH1,dH]
 
@@ -81,10 +93,40 @@ class SIRModels:
         Return: 
             - state after one step
         """
-        dS = -self.beta*self.P(state)*1*state[1]*state[0]+ self.nue*state[2]
-        dI = self.beta*self.P(state)*1+state[1]*state[0]- self.gamma+state[1]
-        dR = self.gamma*state[1]-self.nue+state[2]
-        dH1 = 2/self.T*(state[1]-state[3])
-        dH = 2/self.T*(state[3]-state[4])
+        P = self.P(state)
+        S , I, R, H1, H = state
+
+        dS = -self.beta*P*1*I*S + self.nue*R
+        dI = self.beta*P*1*I*S - self.gamma*I
+        dR = self.gamma*I - self.nue*R
+        dH1 = 2/self.T*(I-H1)
+        dH = 2/self.T*(H1-H)
 
         return [dS,dI,dR,dH1,dH]
+
+    def JacobiMemory(self,state):
+        """
+        The function returns the Jacobian.
+
+        Args:
+            - state   - Required: state=(S,I,R,H1,H) vector
+        Return: 
+            - JacobiMatrix
+        """
+        Jac = np.zeros((4,4))
+        Jac[0,0] = - self.beta*self.P(state)*state[1]-self.nue
+        Jac[0,1] = - self.beta*self.P(state)*state[0]-self.nue
+
+        Jac[0,3] = - self.beta*self.dP(state)*state[0]*state[1]
+        Jac[1,0] = self.beta*self.P(state)*state[1]
+        Jac[1,1] = self.beta*self.P(state)*state[0]-self.gamma
+
+        Jac[1,3] = self.beta*self.dP(state)*state[0]*state[1]
+
+        Jac[2,1] = 2/self.T
+        Jac[2,2] = - 2/self.T
+
+
+        Jac[3,2] = 2/self.T
+        Jac[3,3] = - 2/self.T
+        return Jac
