@@ -11,20 +11,13 @@ class SIRModels:
         self.p_base = 0.1 # Strongest possible factor that reduces the transmission rate
         self.p_cap = 1e-3 # percieved risk beyond which no further reduction of the reansmission rate takes palce
         self.epsilon = 1e-4 # Curvature parameter
-        self.s = 0.5 # Amplitude of seasonal forcing
+        self.s = 0.3 # Amplitude of seasonal forcing
         self.omega = 2*np.pi/360 #Frequency of yearly seasonsl variation
-        self.T = 100 # mittlerer Erinnerungszeit
+        self.T = 60 # mittlerer Erinnerungszeit
         self.P = lambda state: self.p_base+(1-self.p_base)/self.p_cap*self.epsilon*np.log(1+np.exp(1/self.epsilon*(self.p_cap-state[4])))
-        self.Gamma = lambda t : 1+self.s*np.cos(self.omega*t)
+        self.Gamma = lambda t : 1+ self.s*np.cos(self.omega*t)
         self.dP = lambda state : (((1-self.p_base)/self.p_cap)*self.epsilon*np.exp((self.p_cap-state[4])/self.epsilon))/(1+np.exp(self.p_cap-state[4]/self.epsilon))
 
-    def fixed_points(self):
-         dS = 
-         dI = 
-         dR = 
-         dH1 =
-         dH = 
-         return [dS, dI, dR, dH1, dH]
 
     def ClassicIncrement(self,t, state):
         """
