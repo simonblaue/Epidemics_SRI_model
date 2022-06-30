@@ -77,7 +77,7 @@ class SIRModels:
 
         return [dS,dI,dR,dH1,dH]
 
-    def MemoryIncrement(self, t, state):
+    def MemoryIncrement(self, state, t=0):
         """
         The function returns the temporal derivative of the state vector 'state'=(S,I,R,H1,H) for the classical SIR Model.
 
@@ -109,10 +109,10 @@ class SIRModels:
             - JacobiMatrix
         """
         Jac = np.zeros((4,4))
-        Jac[0,0] = - self.beta*self.P(state[4])*state[1]-self.nue
-        Jac[0,1] = - self.beta*self.P(state)*state[0]-self.nue
+        Jac[0,0] = -self.beta*self.P(state[4])*state[1]-self.nue
+        Jac[0,1] = -self.beta*self.P(state[4])*state[0]-self.nue
 
-        Jac[0,3] = - self.beta*self.dP(state[4])*state[0]*state[1]
+        Jac[0,3] = -self.beta*self.dP(state[4])*state[0]*state[1]
         Jac[1,0] = self.beta*self.P(state[4])*state[1]
         Jac[1,1] = self.beta*self.P(state[4])*state[0]-self.gamma
 
@@ -124,6 +124,7 @@ class SIRModels:
 
         Jac[3,2] = 2/self.T
         Jac[3,3] = - 2/self.T
+
         return Jac
 
     def MemoryIncrementForStability(self, I):
