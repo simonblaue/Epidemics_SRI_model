@@ -1,10 +1,10 @@
-
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
 import scipy.integrate as int
 import general_methods as gm
 from scipy.signal import find_peaks
+# plt.rc('font', size=18) #controls default text size
 
 
 class SIRModels:
@@ -32,13 +32,13 @@ class SIRModels:
         #zu variieren
         self.dI_thresh = dI_thresh
         self.d_pcap_min = self.p_cap*reductionfactor
-
+        self.delta_pcap = None
 
     def ClassicIncrement (self,t,state):
         """
         The function returns the temporal derivative of the state vector 'state'=(S,I,R) for the classical SIR Model.
 
-        Args:s
+        Args:
             - state   - Required: state=(S,I,R) vector
             - beta    - Required: transmission rate
             - gamma   - Required: recovery rate
@@ -208,13 +208,16 @@ class SIRModels:
         return Fix
     
     def P_new(self,H,dI):
-  
-        if dI<0:
-            delta_p_cap = self.p_cap/2
-        elif dI < self.dI_thresh:
-            delta_p_cap = -(self.p_cap/2-self.d_pcap_min)/self.dI_thresh*dI+self.p_cap/2
+
+        if not self.delta_pcap:
+            if dI<0:
+                delta_p_cap = self.p_cap/2
+            elif dI < self.dI_thresh:
+                delta_p_cap = -(self.p_cap/2-self.d_pcap_min)/self.dI_thresh*dI+self.p_cap/2
+            else:
+                delta_p_cap = self.d_pcap_min
         else:
-            delta_p_cap = self.d_pcap_min
+            delta_p_cap = self.delta_pcap
 
         pcap1 = self.p_cap/2-delta_p_cap
         pcap2 = self.p_cap/2+delta_p_cap
@@ -254,9 +257,8 @@ class SIRModels:
         return y[1]-self.threshold
 
 class plots():
-    def PlotTrajectoryAndFix(Model,save=None, T_min=0, T_max=10000):
-        #print(Model.Fix)
-        SolveDict = int.solve_ivp(Model.MemoryIncrement,[0,T_max],[0.99,0.01,0,0,0], max_step = 1)
+    def PlotTrajectoryAndFix(Model,Func,save=None, T_min=0, T_max=10000):
+        SolveDict = int.solve_ivp(Func,[0,T_max],[0.99,0.01,0,0,0], max_step = 1)
         #int(np.shape(X) , X)
         t = SolveDict.t
         state = SolveDict.y
@@ -265,6 +267,7 @@ class plots():
         #plt.plot(t,state[0,:], label = 'S')
         #plt.plot(t,state[1,:], label = 'I')
         #plt.plot(t,state[2,:], label = 'R')
+        
         plt.plot(state[0,t>T_min],state[1,t>T_min],label = 'Trajectory')
         plt.scatter(Model.Fix[0],Model.Fix[1], label = 'Fixpoint',color = 'r')
         #plt.hlines(y = 0 , xmin=np.min(state[0,:]),xmax=np.max(state[0,:]), color = 'black', linestyles='dotted')
@@ -281,10 +284,10 @@ class plots():
         
         if func.__name__ == 'AdaptivePIncrement':
             event1 = lambda t,x: model.event_threshold_p_adapt(t,x)    
-        elif func.__name__ == 'SeasonalyIncrement':
-            event1 = lambda t,x: model.i_peaks(t,x)
         if func.__name__ == 'DifferentPIncrement':
             event1 = lambda t,x: model.different_p_event(t,x)     
+        else:
+            event1 = lambda t,x: model.i_peaks(t,x)
         event1.direction = -1 
         """
         
@@ -299,7 +302,7 @@ class plots():
         """
         
         
-        SolveDict = int.solve_ivp(func,[0,T_max], y0, max_step = 1, events=[event1])#,event2,event3_thres,event4_thres])
+        SolveDict = int.solve_ivp(func,[0,T_max], y0, max_step = 0.1, events=[event1])#,event2,event3_thres,event4_thres])
         t = SolveDict.t
         state = SolveDict.y
         events0 = SolveDict.y_events[0]
@@ -308,10 +311,12 @@ class plots():
         #print(events.shape,t_events.shape)
         #plt.plot(t,state[0,:], label = 'S')
         plt.plot(t[t>T_min],state[1,t>T_min], label = 'I')
-        plt.scatter(t_events[t_events>T_min],events0[t_events>T_min,1],label='Maxima',c='red') #t_events>T_min
+        #plt.scatter(t_events[t_events>T_min],events0[t_events>T_min,1],label='Maxima',c='red') #t_events>T_min
         #plt.scatter(t[events2_ind],state[1,events2_ind],label='Maxima2nd',c='green')
         #plt.plot(t,state[2,:], label = 'R')
         #plt.ylim(0.02025, 0.0204)
+        plt.xlabel(r"Time $t$ in days")
+        plt.ylabel("Infected fraction $I$ ")
         plt.legend()
 
         if save is not None:
@@ -320,7 +325,7 @@ class plots():
             plt.show()
         return t,state
 
-    def PlotStability(Model,save = None):
+    def PlotStabilityAnalytically(Model,save = None):
         Ts=np.arange(1,60,0.1)
         p_bases = np.arange(0.01,0.25,0.0001)
         Stable = np.ones((np.shape(Ts)[0],np.shape(p_bases)[0]))
@@ -347,7 +352,8 @@ class plots():
         else:
             plt.show()  
 
-
+    def PlotStabilityNumerically(Model, save = None):
+        pass
     def PlotBifurcation(model, func, save=None):
         peaks_list = []
         time_list = []
@@ -395,10 +401,9 @@ class plots():
         else:
             plt.show()     
     
-
     def PlotPH(model,func, y0=[0.99,0.01,0,0,0],save=None, T_min = 0, T_max=10000):
-        plt.figure(figsize=(10,8))
-        plt.rc('font', size=18) 
+        # plt.figure(figsize=(10,8))
+        # plt.rc('font', size=18) 
         t = np.arange(T_min,T_max, 0.5)        
         SolveDict = int.solve_ivp(func,[0,T_max], y0, max_step = 1, t_eval=t)
         t = SolveDict.t
@@ -410,24 +415,23 @@ class plots():
             P_H = []
             for h,hi in zip(H,Hi):
                 P_H.append(model.P_new(h,hi))
-        elif func.__name__ == 'SeasonalyIncrement':
-            H = state[4,:]
-            P_H = []
-            for h in H:
-                P_H.append(model.P(h))
         elif func.__name__ == 'DifferentPIncrement':
             H = state[4,:]
             H1 = state[3,:]
             P_H = []
             for h,h1 in zip(H,H1):
                 P_H.append(model.P_new(h,h1))
+        else:
+            H = state[4,:]
+            P_H = []
+            for h in H:
+                P_H.append(model.P(h))
         P_H=np.array(P_H)
-        plt.scatter(H[t>T_min],P_H[t>T_min], label = 'Trajectory', c = t[t>T_min])#, lw = 0.5, s = 2)
-
-        plt.xlabel('H')
-        plt.ylabel('P(H,dI)')
-        plt.legend()
-
+        plt.scatter(H[t>T_min],P_H[t>T_min], c = t[t>T_min])#, lw = 0.5, s = 2)
+        plt.colorbar(label=r'Time $t$ in days', drawedges=True, spacing="uniform")
+        plt.xlabel(r'Perceived Risk $H$')
+        plt.ylabel(r'Action $P(H,\dot{H})$')
+        
         if save is not None:
             plt.savefig(save+'.pdf')
         else:
@@ -442,16 +446,18 @@ if __name__ == "__main__":
     #Model = SIRModels(s=0)
     #plots.PlotBifurcation(Model,Model.AdaptivePIncrement,save='Plots/BifurcatioAdaptiveP_s0_1_MxStep01')#,y0=[0.99,0.01,0,0,0,0,0])
 
-    Model = SIRModels(s=0, p_cap=0.07, dI_thresh=0.05, reductionfactor=1/10)#, dI_thresh=0.0000001, reductionfactor=0.00001, p_cap=0.01)
-    
-    
+    unser_Model = SIRModels(s=0, p_cap=0.07, dI_thresh=0.05, reductionfactor=1/10)#, dI_thresh=0.0000001, reductionfactor=0.00001, p_cap=0.01)
+    Joel_Model = SIRModels(s=0)
 
-    t,state = plots.PlotPH(Model,Model.DifferentPIncrement,T_min = 0, T_max = 100, y0=[0.99,0.01,0,0,0])# T_min = 1920, T_max = 2000, y0=[0.99,0.01,0,0,0])#y0=[0.99,0.01,0,0,0,0,0])
-    plt.plot(Idot, label = 'dI')
-    plt.plot(Hdot, label = 'dH')
-    plt.legend()
-    plt.show()
-    plots.PlotSRITime(Model,Model.DifferentPIncrement, y0=[0.99,0.01,0,0,0], T_min = 0, T_max = 100)#T_min = 1500, T_max = 2000)
+    
+    Model =unser_Model
+    t,state = plots.PlotPH(Model,Model.DifferentPIncrement,T_min = 530, T_max = 600, y0=[0.99,0.01,0,0,0],save = 'Plots/JoelsTrajectory')# T_min = 1920, T_max = 2000, y0=[0.99,0.01,0,0,0])#y0=[0.99,0.01,0,0,0,0,0])
+    #plt.plot(Idot, label = 'dI')
+    #plt.plot(Hdot, label = 'dH')
+    #plt.legend()
+    #plt.show()
+    plots.PlotSRITime(Model,Model.DifferentPIncrement, y0=[0.99,0.01,0,0,0], T_min = 500, T_max = 700)#T_min = 1500, T_max = 2000)
+    plots.PlotTrajectoryAndFix(Model, Model.DifferentPIncrement)
     #plots.PlotTrajectoryAndFix(Model)
     
     """
