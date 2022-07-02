@@ -207,7 +207,7 @@ class SIRModels:
         return slope*self.epsilon*np.log(np.exp(1/self.epsilon*(self.p_cap-M))+1)+self.p_base
 
     def seasonalforcing(self,t):
-        return (1+self.s*np.sin(self.omega*t))
+        return (1+self.s*np.cos(self.omega*t))
 
     def i_peaks(self,t,y):
         FOI = self.FOI_softplus(y[4],y[1])
@@ -219,12 +219,10 @@ class SIRModels:
 
     ####
 
-    def FOI_our_p(self,H,Hi):
-        return self.P_new(H,Hi)
-
     def event_threshold_p_adapt(self,t,y):
-        FOI = self.FOI_our_p(y[4],y[6],)
-        return FOI*y[0]*self.seasonalforcing(t) - self.gamma*y[1]
+        # y = [dS,dI,dR,dH1,dH,dHi1,dHi]
+        FOI = self.P_new(y[4],y[6])
+        return self.beta*FOI*y[0]*y[1]*self.seasonalforcing(t) - self.gamma*y[1]
 
 
 class plots():
@@ -250,19 +248,24 @@ class plots():
         else:
             plt.show()
 
-    def PlotSRITime(func, y0=[0.99,0.01,0,0,0],save=None):
-        SolveDict = int.solve_ivp(func,[10000,100000], y0, max_step = 1)
+    def PlotSRITime(func, y0=[0.99,0.01,0,0,0],t_range=[0,10000],plot_range=[0,10000],save=None):
+        plt.figure(figsize=(10,8))
+        plt.rc('font', size=18) 
+        SolveDict = int.solve_ivp(func,t_range, y0, max_step = 1)
         t = SolveDict.t
         state = SolveDict.y
-        #plt.plot(t,state[0,:], label = 'S')
-        plt.figure(figsize=(30,23))
-        plt.plot(t[1000:],state[1,:][1000:], label = 'I')
-        #plt.plot(t,state[2,:], label = 'R')
-        plt.ylim(0.02025, 0.0204)
+        sum_of_SIR = state[0,:]+state[1,:]+state[2,:]
+        ##plt.plot(t[plot_range],state[0,:][plot_range], label = 'S')
+        plt.plot(t[plot_range],state[1,:][plot_range], label = 'I')
+        plt.plot(t[plot_range],state[2,:][plot_range], label = 'R')
+        # plt.ylim(0.02025, 0.0204) for memory 
         #plt.ylim(0.0383,0.038335) for adjusted P
+        ##plt.plot(t[plot_range],sum_of_SIR[plot_range], label="Sum of SIR")
         plt.legend()
+        plt.xlabel("Time $t$ in days")
+        plt.ylabel("Fraction on hole population")
         if save is not None:
-            plt.savefig(save+'.pdf')
+            plt.savefig(save+'.png')
         else:
             plt.show()
 
@@ -309,23 +312,28 @@ class plots():
         p_adapt_events = lambda t,x: model.event_threshold_p_adapt(t,x)
 
         plt.figure(figsize=(10,10))
-        s_array = np.linspace(0,0.3,precision)
+        s_array = np.linspace(0.4,0.8,precision)
         for (i,s) in enumerate(s_array):
             model.s = s
             S = np.random.random() 
             if func.__name__ == 'AdaptivePIncrement':
-                solve_dict_seasonal = int.solve_ivp(func,[0,30000], [S,1-S,0.0, 0, 0,0,0],max_step=10)#,event3_thres,event4_thres])
-                I = solve_dict_seasonal.y[1,:]
-                events_idx = find_peaks(I,height=[0.001,0.2])[0]
-                events = I[events_idx]
-                one_s_list = [s for _ in range(len(events))]
-                plt.scatter(one_s_list,events,marker=',',lw=0, s=1)
+                solve_dict_seasonal = int.solve_ivp(func,[0,30000], [S,1-S,0.0, 0, 0,0,0],max_step=10, events=[p_adapt_events])#,event3_thres,event4_thres])
+                t = solve_dict_seasonal.t
+                events = solve_dict_seasonal.y_events[0][-10:]
+                t_events = solve_dict_seasonal.t_events[0][-10:]
+                one_s_list = [s for _ in range(events.shape[0])]
+                plt.scatter(one_s_list,events[:,1],marker=',',lw=0, s=1,c = t_events)
+                # I = solve_dict_seasonal.y[1,:]
+                # events_idx = find_peaks(I,height=[0.001,0.2])[0]
+                # events = I[events_idx]
+                # one_s_list = [s for _ in range(len(events))]
+                # plt.scatter(one_s_list,events,marker=',',lw=0, s=1)
 
             else:
                 solve_dict_seasonal = int.solve_ivp(func,[0,10000], [S,1-S,0.0, 0, 0],max_step=10, events=[event1])#,event3_thres,event4_thres])
                 t = solve_dict_seasonal.t
-                events = solve_dict_seasonal.y_events[0]
-                t_events = solve_dict_seasonal.t_events[0]
+                events = solve_dict_seasonal.y_events[0][-10:]
+                t_events = solve_dict_seasonal.t_events[0][-10:]
                 one_s_list = [s for _ in range(events.shape[0])]
                 plt.scatter(one_s_list,events[:,1],marker=',',lw=0, s=1,c = t_events)
             gm.progress_featback.printProgressBar(i,precision)
