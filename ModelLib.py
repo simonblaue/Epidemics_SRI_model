@@ -140,18 +140,7 @@ class SIRModels:
 
         return [dS,dI,dR,dH1,dH]
 
-    def MemoryIncrementForStability(self, I):
-        """
-        The function returns the temporal derivative of the state vector 'state'=(S,I,R,H1,H) for the classical SIR Model.
 
-        Args:
-            - state   - Required: state=(S,I,R,H1,H) vector
-            - t    - Required: transmission rate
-
-        Return: 
-            - state after one step
-        """
-        return self.nue/(self.gamma+self.nue)*(1-self.gamma/(self.beta*self.P(I)))-I
 
     def AdaptivePIncrement(self, t, state):
 
@@ -197,6 +186,7 @@ class SIRModels:
         Jac[3,3] = - 2/self.T
         return Jac
 
+########## FIXPOINTS ############
     def FindFixpoint(self,fun,I0 = 1):
         Fix = opt.root(fun,I0)
         I = Fix.x
@@ -206,11 +196,48 @@ class SIRModels:
         H1 = I
         Fix = np.array([S,I,R,H1,H])
         return Fix
-    
+
+    def FindFixpointDifferentP(self,fun,I0 = 1):
+        Fix = opt.root(fun, I0)
+        I = Fix.x
+        H = I
+        S = self.gamma/(self.beta*self.P_new(H,0))
+        R = self.gamma/self.nue*I
+        H1 = I
+        Fix = np.array([S,I,R,H1,H])
+        return Fix
+
+    def MemoryIncrementForStability(self, I):
+        """
+        The function returns the temporal derivative of the state vector 'state'=(S,I,R,H1,H) for the classical SIR Model.
+
+        Args:
+            - state   - Required: state=(S,I,R,H1,H) vector
+            - t    - Required: transmission rate
+
+        Return: 
+            - state after one step
+        """
+        return self.nue/(self.gamma+self.nue)*(1-self.gamma/(self.beta*self.P(I)))-I
+
+    def DifferentPIncrementForStability(self, H):
+        """
+        The function returns the temporal derivative of the state vector 'state'=(S,I,R,H1,H) for the classical SIR Model.
+
+        Args:
+            - state   - Required: state=(S,I,R,H1,H) vector
+            - t    - Required: transmission rate
+
+        Return: 
+            - state after one step
+        """
+        return self.nue/(self.gamma+self.nue)*(1-self.gamma/(self.beta*self.P_new(H,0)))-H
+
+######### Helping Functions ##########
     def P_new(self,H,dI):
 
         if not self.delta_pcap:
-            if dI<0:
+            if dI<=0:
                 delta_p_cap = self.p_cap/2
             elif dI < self.dI_thresh:
                 delta_p_cap = -(self.p_cap/2-self.d_pcap_min)/self.dI_thresh*dI+self.p_cap/2
@@ -428,7 +455,7 @@ class plots():
                 P_H.append(model.P(h))
         P_H=np.array(P_H)
         plt.scatter(H[t>T_min],P_H[t>T_min], c = t[t>T_min])#, lw = 0.5, s = 2)
-        plt.colorbar(label=r'Time $t$ in days', drawedges=True, spacing="uniform")
+        plt.colorbar(label=r'Time $t$ in days', drawedges=True)
         plt.xlabel(r'Perceived Risk $H$')
         plt.ylabel(r'Action $P(H,\dot{H})$')
         
