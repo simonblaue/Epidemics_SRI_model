@@ -156,7 +156,7 @@ class SIRModels:
         Hdot.append(Hi)
         return [dS,dI,dR,dH1,dH,dHi1,dHi]
 
-    def JacobiMemory(self,state):
+    def Jacobi(self,state, func):
         """
         The function returns the Jacobian.
 
@@ -165,15 +165,28 @@ class SIRModels:
         Return: 
             - JacobiMatrix
         """
+        if func.__name__ == 'MemoryIncrement':
+            P = self.P(state[4])
+            dP = self.dP(state[4])
+        elif func.__name__ == 'DifferentPIncrement':
+            if self.delta_pcap is None:
+                raise ValueError(
+                    "self.delta_pcap is None but needs to be of shape float"
+                )
+            else:
+                P = self.P_new(state[4], None)
+                dP = self.dP_new(state[4])
+
+
         Jac = np.zeros((4,4))
-        Jac[0,0] = - self.beta*self.P(state[4])*state[1]-self.nue
-        Jac[0,1] = - self.beta*self.P(state[4])*state[0]-self.nue
+        Jac[0,0] = - self.beta*P*state[1]-self.nue
+        Jac[0,1] = - self.beta*P*state[0]-self.nue
 
-        Jac[0,3] = - self.beta*self.dP(state[4])*state[0]*state[1]
-        Jac[1,0] = self.beta*self.P(state[4])*state[1]
-        Jac[1,1] = self.beta*self.P(state[4])*state[0]-self.gamma
+        Jac[0,3] = - self.beta*dP*state[0]*state[1]
+        Jac[1,0] = self.beta*P*state[1]
+        Jac[1,1] = self.beta*P*state[0]-self.gamma
 
-        Jac[1,3] = self.beta*self.dP(state[4])*state[0]*state[1]
+        Jac[1,3] = self.beta*dP*state[0]*state[1]
 
         Jac[2,1] = 2/self.T
         Jac[2,2] = - 2/self.T
@@ -183,7 +196,6 @@ class SIRModels:
         Jac[3,2] = 2/self.T
         Jac[3,3] = - 2/self.T
         return Jac
-
 ########## FIXPOINTS ############
     def FindFixpoint(self,fun,I0 = 0.001):
         Fix = opt.root(fun,I0)
@@ -317,10 +329,10 @@ class SIRModels:
 
     def CheckStabilityAnalytically(self,func):
         if func.__name__ == 'MemoryIncrementForStability':
-            Model.Fix = Model.FindFixpoint(Model.MemoryIncrementForStability)
+            self.Fix = self.FindFixpoint(self.MemoryIncrementForStability)
         elif func.__name__ == 'DifferentPIncrement':
-            Model.Fix = Model.FindFixpointDifferentP(Model.DifferentPIncrementForStability)
-        Jacobi = Model.Jacobi(Model.Fix, func)
+            self.Fix = self.FindFixpointDifferentP(self.DifferentPIncrementForStability)
+        Jacobi = self.Jacobi(self.Fix, func)
         w = np.linalg.eigvals(Jacobi)
         w_real=np.real(w)
         max = np.max(w_real)
@@ -417,9 +429,7 @@ class plots():
         else:
             plt.show()  
 
-    def PlotStabilityNumerically(model, func, T_min, T_max, save = None, dT=0.5,dp=0.01):
-        eps = 0.001
-        
+    def PlotStabilityNumerically(model, func, T_min, T_max, save = None, dT=0.5,dp=0.01,eps = 0.001):
         Ts=np.arange(1,80,dT)
         p_bases = np.arange(0.01,0.5,dp)
         StabilityResults = np.zeros((Ts.shape[0],p_bases.shape[0]))
@@ -525,8 +535,3 @@ class plots():
     
 Idot = []
 Hdot = []
-
-
-
-   
-    
