@@ -140,6 +140,8 @@ class SIRModels:
 
         return [dS,dI,dR,dH1,dH]
 
+
+
     def AdaptivePIncrement(self, t, state):
 
         S , I, R, H1, H, Hi1, Hi = state
@@ -282,53 +284,6 @@ class SIRModels:
     def event_threshold(self,t,y):
         return y[1]-self.threshold
 
-######## Stability #############
-    def CheckStabilityNumerically(self,Func,T_min,T_max,eps):
-        """
-        Returns  True if Convergences is achieved
-        """
-        
-        if Func.__name__ == 'AdaptivePIncrement':
-            event1 = lambda t,x: self.event_threshold_p_adapt(t,x)    
-        if Func.__name__ == 'DifferentPIncrement':
-            event1 = lambda t,x: self.different_p_event(t,x)     
-        else:
-            event1 = lambda t,x: self.i_peaks(t,x)
-
-
-        SolveDict = int.solve_ivp(Func,[0,T_max],[0.99,0.01,0,0,0], max_step = 1,events=[event1])
-        events = SolveDict.y_events[0]
-        t_events = SolveDict.t_events[0]
-        Ivents=events[t_events>T_min,1]
-        MinMaxDist = np.abs(Ivents[1:]-Ivents[:-1])
-        dMinMaxDist = (np.roll(MinMaxDist, -1, 0)-np.roll(MinMaxDist, +1, 0))/(2)
-        if np.shape(MinMaxDist)[0]<10:
-            raise ValueError(
-                "Integration Length is to small!"
-            )
-        MeanInc = np.mean(dMinMaxDist[-100:-2])
-        Mean = np.mean(MinMaxDist[-10:])
-        if Mean>eps or MeanInc>0:
-            print(Mean,MeanInc)
-            return False
-        else:
-            print(self.T,self.p_base)
-            return True
-
-    def CheckStabilityAnalytically(self,func):
-        if func.__name__ == 'MemoryIncrementForStability':
-            Model.Fix = Model.FindFixpoint(Model.MemoryIncrementForStability)
-        elif func.__name__ == 'DifferentPIncrement':
-            Model.Fix = Model.FindFixpointDifferentP(Model.DifferentPIncrementForStability)
-        Jacobi = Model.Jacobi(Model.Fix, func)
-        w = np.linalg.eigvals(Jacobi)
-        w_real=np.real(w)
-        max = np.max(w_real)
-        if max>0:
-            return 0
-        else:
-            return 1
-
 class plots():
     def PlotTrajectoryAndFix(Model,Func,save=None, T_min=0, T_max=10000):
         SolveDict = int.solve_ivp(Func,[0,T_max],[0.99,0.01,0,0,0], max_step = 1)
@@ -398,46 +353,35 @@ class plots():
             plt.show()
         return t,state
 
-    def PlotStabilityAnalytically(Model,func,save = None, dT=0.1, T_max=60, dp=0.0001, P_max=0.25):
-        Ts=np.arange(1,T_max,dT)
-        p_bases = np.arange(0.01,P_max,dp)
+    def PlotStabilityAnalytically(Model,save = None):
+        Ts=np.arange(1,60,0.1)
+        p_bases = np.arange(0.01,0.25,0.0001)
         Stable = np.ones((np.shape(Ts)[0],np.shape(p_bases)[0]))
-        for j,Model.T in enumerate(Ts):
-            for i, Model.p_base in enumerate(p_bases):
-                Stable[j, i] = Model.CheckStabilityAnalytically(func)
+        for j,T in enumerate(Ts):
+            for i, p_base in enumerate(p_bases):
+                Model.T = T
+                Model.p_base = p_base
+                Model.Fix = Model.FindFixpoint(Model.MemoryIncrementForStability)
+                Jacobi = Model.JacobiMemory(Model.Fix)
+                w = np.linalg.eigvals(Jacobi)
+                w_real=np.real(w)
+                max = np.max(w_real)
+                if max>0:
+                    Stable[j, i] = 0
                 gm.progress_featback.printProgressBar(j*np.shape(p_bases)[0]+i,np.shape(p_bases)[0]*np.shape(Ts)[0])
 
-        im = plt.imshow(Stable[-1:0:-1,-1:0:-1],vmin=0,vmax=1,extent=[p_bases.min(),p_bases.max(),Ts.min(),Ts.max()],aspect='auto')
-        
+        im = plt.imshow(Stable[-1:0:-1,:],vmin=0,vmax=1,extent=[p_bases.min(),p_bases.max(),Ts.min(),Ts.max()],aspect='auto')
+        #plt.colorbar(im)
         plt.title('Stability Diagramm', fontweight ="bold")
-        plt.xlabel(r'Stubberness $ p_{base}$')
-        plt.ylabel(r'Mean memory $T$')
+        plt.xlabel(r'$p_{base}$')
+        plt.ylabel(r'$T$')
         if save is not None:
             plt.savefig(save+'.pdf')
         else:
             plt.show()  
 
-    def PlotStabilityNumerically(model, func, T_min, T_max, save = None, dT=0.5,dp=0.01):
-        eps = 0.001
-        
-        Ts=np.arange(1,80,dT)
-        p_bases = np.arange(0.01,0.5,dp)
-        StabilityResults = np.zeros((Ts.shape[0],p_bases.shape[0]))
-
-        for i,model.p_base in enumerate(p_bases):
-            for j,model.T in enumerate(Ts):
-                StabilityResults[j,i]=model.CheckStabilityNumerically(func,T_min,T_max,eps)                
-                gm.progress_featback.printProgressBar(i*np.shape(Ts)[0]+j,np.shape(p_bases)[0]*np.shape(Ts)[0])
-        im = plt.imshow(StabilityResults[-1:0:-1,-1:0:-1],vmin=0,vmax=1,extent=[p_bases.min(),p_bases.max(),Ts.min(),Ts.max()],aspect='auto')
-        plt.title('Stability Diagramm', fontweight ="bold")
-        plt.xlabel(r'Stubberness $ p_{base}$')
-        plt.ylabel(r'Mean memory $T$')
-        if save is not None:
-            plt.savefig(save+'.pdf')
-        else:
-            plt.show()
-    
-
+    def PlotStabilityNumerically(Model, save = None):
+        pass
     def PlotBifurcation(model, func, save=None):
         peaks_list = []
         time_list = []
@@ -525,8 +469,39 @@ class plots():
     
 Idot = []
 Hdot = []
+if __name__ == "__main__":
 
+    #Model = SIRModels(s=0)
+    #plots.PlotBifurcation(Model,Model.AdaptivePIncrement,save='Plots/BifurcatioAdaptiveP_s0_1_MxStep01')#,y0=[0.99,0.01,0,0,0,0,0])
 
+    unser_Model = SIRModels(s=0, p_cap=0.07, dI_thresh=0.05, reductionfactor=1/10)#, dI_thresh=0.0000001, reductionfactor=0.00001, p_cap=0.01)
+    Joel_Model = SIRModels(s=0)
+
+    
+    Model =unser_Model
+    t,state = plots.PlotPH(Model,Model.DifferentPIncrement,T_min = 530, T_max = 600, y0=[0.99,0.01,0,0,0],save = 'Plots/JoelsTrajectory')# T_min = 1920, T_max = 2000, y0=[0.99,0.01,0,0,0])#y0=[0.99,0.01,0,0,0,0,0])
+    #plt.plot(Idot, label = 'dI')
+    #plt.plot(Hdot, label = 'dH')
+    #plt.legend()
+    #plt.show()
+    plots.PlotSRITime(Model,Model.DifferentPIncrement, y0=[0.99,0.01,0,0,0], T_min = 500, T_max = 700)#T_min = 1500, T_max = 2000)
+    plots.PlotTrajectoryAndFix(Model, Model.DifferentPIncrement)
+    #plots.PlotTrajectoryAndFix(Model)
+    
+    """
+    Model = SIRModels()
+    plots.PlotStability(Model, save='Plots/StabilityTry')
+    
+    """
+    
+        
+    """
+    Model=SIRModels()
+    plots.PlotBifurcation(model = Model, func = Model.SeasonalyIncrement, save = 'Plots/Bifurcation')
+    
+    """
+    
 
    
+    
     
