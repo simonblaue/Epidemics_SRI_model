@@ -187,7 +187,7 @@ class SIRModels:
         return Jac
 
 ########## FIXPOINTS ############
-    def FindFixpoint(self,fun,I0 = 1):
+    def FindFixpoint(self,fun,I0 = 0.001):
         Fix = opt.root(fun,I0)
         I = Fix.x
         S = self.gamma/(self.beta*self.P(I))
@@ -197,8 +197,9 @@ class SIRModels:
         Fix = np.array([S,I,R,H1,H])
         return Fix
 
-    def FindFixpointDifferentP(self,fun,I0 = 1):
+    def FindFixpointDifferentP(self,fun,I0 = 0.001):
         Fix = opt.root(fun, I0)
+        print(Fix)
         I = Fix.x
         H = I
         S = self.gamma/(self.beta*self.P_new(H,0))
@@ -455,7 +456,7 @@ class plots():
                 P_H.append(model.P(h))
         P_H=np.array(P_H)
         plt.scatter(H[t>T_min],P_H[t>T_min], c = t[t>T_min])#, lw = 0.5, s = 2)
-        plt.colorbar(label=r'Time $t$ in days', drawedges=True)
+        plt.colorbar(label=r'Time $t$ in days')
         plt.xlabel(r'Perceived Risk $H$')
         plt.ylabel(r'Action $P(H,\dot{H})$')
         
