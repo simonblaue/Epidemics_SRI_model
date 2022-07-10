@@ -464,6 +464,7 @@ class SIRModels:
 
 class plots():
     def PlotTrajectoryAndFix(Model,Func,save=None, y0 =[0.99,0.01,0,0,0],T_min=0, T_max=10000):
+        plt.figure(figsize=(12,10))
         if Func.__name__ == 'MemoryIncrement':
             Model.Fix = Model.FindFixpoint(Model.MemoryIncrementForStability)
         elif Func.__name__ == 'DifferentPIncrement':
@@ -491,7 +492,7 @@ class plots():
         return t,state
 
     def PlotSRITime(model,func, y0=[0.99,0.01,0,0,0], save=None, T_min = 0, T_max=10000):
-        
+        plt.figure(figsize=(12,10))
         if func.__name__ == 'AdaptivePIncrement':
             event1 = lambda t,x: model.event_threshold_p_adapt(t,x)    
         if func.__name__ == 'DifferentPIncrement':
@@ -516,7 +517,7 @@ class plots():
         #plt.ylim(0.02025, 0.0204)
         plt.xlabel(r"Time $t$ in days")
         plt.ylabel("Infected fraction $I$ ")
-        plt.legend()
+        #plt.legend()
 
         if save is not None:
             plt.savefig(save+'.pdf')
@@ -610,8 +611,8 @@ class plots():
             plt.show()     
     
     def PlotPH(model,func, y0=[0.99,0.01,0,0,0],save=None, T_min = 0, T_max=10000):
-        # plt.figure(figsize=(10,8))
-        # plt.rc('font', size=18) 
+        plt.figure(figsize=(20,15))
+        plt.rc('font', size=18) 
         t = np.arange(T_min,T_max, 1)        
         SolveDict = int.solve_ivp(func,[0,T_max], y0, max_step = 1, t_eval=t)
         t = SolveDict.t
